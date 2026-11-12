@@ -180,7 +180,8 @@ export function referenceTransition(s: RefState, a: RefAction, meta: RefMeta, no
       const clean:Partial<Pick<Prospect,"name"|"title"|"company"|"city"|"country">>={};
       for(const [k,v] of Object.entries(a.patch)){const t=typeof v==="string"?v.trim().slice(0,120):"";if(t)clean[k as keyof typeof clean]=t;}
       const prospectEdits={...s.prospectEdits,[a.id]:{...s.prospectEdits[a.id],...clean}};
-      const editedState = { ...s, prospectEdits };\n      const suppressions = optedOut(s,a.id) ? addSuppressions(editedState,[a.id]) : s.suppressions;
+      const editedState = { ...s, prospectEdits };
+      const suppressions = optedOut(s, a.id) ? addSuppressions(editedState, [a.id]) : s.suppressions;
       return {...s,prospectEdits,suppressions,activity:log(s.activity,"sliders",`Prospect ${clean.name??p.name} updated`)};
     }
     case "DELETE_PROSPECT": {
