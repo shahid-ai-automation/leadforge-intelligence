@@ -10,6 +10,7 @@ The public repository contains a separately isolated, anonymized LeadForge core 
 - `packages/leadforge-core/src/engine.ts` — deterministic scoring, identity, intent, campaign, messaging, and sequence logic.
 - `packages/leadforge-core/src/discovery.ts` — pure ICP filtering, size filters, and import outcome helpers; no live data collection.
 - `packages/leadforge-core/src/suppression.ts` — DNC identity hashing.
+- `packages/leadforge-core/src/workspace.ts` — pure prospect collection, deduplication, edit overlay, and suppression helpers with caller-injected seed catalogs.
 - `packages/leadforge-core/src/drafts.ts` — draft edit/review transition rules, with workspace-bound conversation history excluded.
 - `packages/leadforge-core/src/index.ts` — public package exports.
 
@@ -18,7 +19,7 @@ The public repository contains a separately isolated, anonymized LeadForge core 
 - Removed customer-identifying comments and customer-specific email signature text.
 - Removed prospect and conversation seed fixtures and sample CSV rows.
 - Excluded all customer names, logos, branding, accounts, credentials, secrets, `.env` files, private business data, live prospect records, seed datasets, website code, voice-demo code, and database exports.
-- Excluded workspace reducer/state, server persistence, session gate, AI provider adapter, and UI because they remain coupled to demo fixtures, Supabase/TanStack runtime, or workspace configuration.
+- Excluded the demo-seeded application reducer and seed-state factory because they remain coupled to demo fixtures. Extracted only fixture-independent workspace collection/suppression primitives with injected seed catalogs. Server persistence, session gate, AI provider adapter, and UI remain outside the package because they are coupled to Supabase/TanStack runtime or workspace configuration.
 
 ## Validation
 
