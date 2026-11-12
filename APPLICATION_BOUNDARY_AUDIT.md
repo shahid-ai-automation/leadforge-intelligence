@@ -116,16 +116,19 @@ Implemented in `packages/leadforge-core/src/application-adapter.ts`, with public
 ## Validation
 
 Latest successful CI after adapter implementation:
-- Run: [43315076602](https://github.com/shahid-ai-automation/leadforge-intelligence/actions/runs/43315076602)
-- Commit: `f9e6ef73a9fe6d78f545302fff1eae23bf420243`
+- Run: [43315551951](https://github.com/shahid-ai-automation/leadforge-intelligence/actions/runs/43315551951)
+- Commit: `57cb9868c96b376f941dfb12293c31399557bb53`
 - Strict TypeScript: PASS
-- 5 test files: PASS
-- 99 tests: PASS, including six adapter contract tests.
+- 6 test files: PASS
+- 105 tests: PASS, including six adapter contract tests and six differential adapter-vs-pinned-oracle tests.
 
 The tests cover state round-trip/catalogue exclusion, required reset baseline and
 DNC preservation, exact hydrate replacement, preservation of expected-version
 and authorization metadata, unknown-industry rejection, and notification ID
-continuity using a caller-owned counter.
+continuity using a caller-owned counter. A separate six-case differential suite
+compares app-to-core adapter outputs against the pinned source-derived reducer
+for simple transitions, replies/DNC, campaign and inbox actions, draft versions,
+reset/hydration, campaign CRUD, notifications, and prospect lifecycle.
 
 ## Decision
 
