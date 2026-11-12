@@ -3,8 +3,8 @@
  * reducer computes identical values in the browser and on the server.
  * Only a SHA-256 hash of the normalized identity is stored — never the email/name.
  */
-import { prospectIdentity, prospectKey } from "../engine";
-import type { Prospect } from "../model";
+import { prospectIdentity, prospectKey } from "./engine";
+import type { Prospect } from "./model";
 
 const K = new Uint32Array([
   0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
