@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_ICP, DEFAULT_WORKFLOW, type Campaign, type InboxItem, type Prospect } from "../model";
 import { identityHashes } from "../suppression";
 import { referenceTransition, type RefAction, type RefState } from "./reducer-harness";
+import { reduceLeadForgeState } from "../reducer";
 import { pinnedReducerOracle } from "./pinned-reducer.oracle";
 
 const person = (id = "p-001", overrides: Partial<Prospect> = {}): Prospect => ({
@@ -83,7 +84,9 @@ describe("differential parity: pinned source reducer vs fixture-free harness", (
   it.each(cases)("$name", ({ state: input, action }) => {
     const oracle = pinnedReducerOracle(input, action, meta, 100);
     const harness = referenceTransition(input, action, meta, 100);
+    const extracted = reduceLeadForgeState(input, action, meta, 100);
     expect(harness).toEqual(oracle);
+    expect(extracted).toEqual(oracle);
   });
 
   it("compares opt-out after identity edits, including both original and edited fingerprints", () => {
@@ -92,19 +95,25 @@ describe("differential parity: pinned source reducer vs fixture-free harness", (
       prospectEdits: { [p.id]: { name: "Alex Changed", company: "Changed Company" } },
     });
     const action: RefAction = { type: "SUBMIT_REPLY", prospectId: p.id, text: "Please remove me." };
-    expect(referenceTransition(opted, action, meta)).toEqual(pinnedReducerOracle(opted, action, meta));
+    const oracle = pinnedReducerOracle(opted, action, meta);
+    expect(referenceTransition(opted, action, meta)).toEqual(oracle);
+    expect(reduceLeadForgeState(opted, action, meta)).toEqual(oracle);
   });
 
   it("matches no-op identity and malformed-record behavior", () => {
     const missing = { type: "SUBMIT_REPLY", prospectId: "missing", text: "hello" } as RefAction;
     expect(referenceTransition(base, missing, meta)).toEqual(pinnedReducerOracle(base, missing, meta));
+    expect(reduceLeadForgeState(base, missing, meta)).toEqual(pinnedReducerOracle(base, missing, meta));
     const missingMove = { type: "MOVE_STAGE", prospectId: "missing", stage: "engaged" } as RefAction;
     expect(referenceTransition(base, missingMove, meta)).toEqual(pinnedReducerOracle(base, missingMove, meta));
+    expect(reduceLeadForgeState(base, missingMove, meta)).toEqual(pinnedReducerOracle(base, missingMove, meta));
   });
   it.each(Array.from({ length: 9 }, (_, cursor) => cursor))("matches pinned campaign simulation at cursor %i", (cursor) => {
     const input = state({ campaigns: [campaign([p.id], { simCursor: cursor })] });
     const action: RefAction = { type: "CAMPAIGN_SIM_NEXT", id: "cmp-test" };
-    expect(referenceTransition(input, action, meta)).toEqual(pinnedReducerOracle(input, action, meta));
+    const oracle = pinnedReducerOracle(input, action, meta);
+    expect(referenceTransition(input, action, meta)).toEqual(oracle);
+    expect(reduceLeadForgeState(input, action, meta)).toEqual(oracle);
   });
 
   it("matches DNC guards for inbox approval, reminders, drafts and campaign simulation", () => {
@@ -123,9 +132,9 @@ describe("differential parity: pinned source reducer vs fixture-free harness", (
       { type: "SAVE_DRAFT", draft: { ...draft, body: "Must not save" } },
     ];
     for (const action of actions) {
-      expect(referenceTransition(blockedState, action, meta)).toEqual(
-        pinnedReducerOracle(blockedState, action, meta),
-      );
+      const oracle = pinnedReducerOracle(blockedState, action, meta);
+      expect(referenceTransition(blockedState, action, meta)).toEqual(oracle);
+      expect(reduceLeadForgeState(blockedState, action, meta)).toEqual(oracle);
     }
   });
 
@@ -136,9 +145,9 @@ describe("differential parity: pinned source reducer vs fixture-free harness", (
     });
     const reimport = person("p-reimport", { name: p.name, company: p.company });
     const action: RefAction = { type: "ADD_PROSPECTS", prospects: [reimport] };
-    expect(referenceTransition(blockedState, action, meta)).toEqual(
-      pinnedReducerOracle(blockedState, action, meta),
-    );
+    const oracle = pinnedReducerOracle(blockedState, action, meta);
+    expect(referenceTransition(blockedState, action, meta)).toEqual(oracle);
+    expect(reduceLeadForgeState(blockedState, action, meta)).toEqual(oracle);
   });
 
 });
