@@ -8,7 +8,7 @@
  * This is test-only reference code, not production reducer code. It accepts
  * injected synthetic records and deliberately has no demoData/store/network imports.
  */
-import type { ActivityEvent, Campaign, ChatMessage, Conversation, InboxItem, Prospect, PipelineStage, ReplyStatus } from "../model";
+import type { ActivityEvent, Campaign, ChatMessage, Conversation, InboxItem, Prospect, PipelineStage, ReplyStatus, WorkflowStep, ICP, CampaignStatus } from "../model";
 import { analyzeBuyerIntent, calculateFitScore, calculateLeadPriority, qualifiesForHandoff, simulationScript, suggestedReplyFor } from "../engine";
 import { identityHashes } from "../suppression";
 import { editDraft, reviewDraft, type DraftMessage } from "../drafts";
@@ -27,7 +27,9 @@ export interface RefNotification {
 }
 export interface RefState {
   prospects: Prospect[];
-  icp: import("../model").ICP;
+  icp: ICP;
+  workflow: WorkflowStep[];
+  customProspects: Prospect[];
   runtime: Record<string, RefRuntime>;
   campaigns: Campaign[];
   inbox: InboxItem[];
@@ -53,7 +55,20 @@ export type RefAction =
   | { type: "INBOX_DISMISS"; id: string }
   | { type: "RESET"; baseline: RefState }
   | { type: "SAVE_DRAFT"; draft: DraftMessage }
-  | { type: "REVIEW_DRAFT"; prospectId: string; status: "approved" | "rejected" };
+  | { type: "REVIEW_DRAFT"; prospectId: string; status: "approved" | "rejected" }
+  | { type: "MOVE_STAGE"; prospectId: string; stage: PipelineStage }
+  | { type: "UPDATE_STEP"; stepId: string; patch: Partial<Pick<WorkflowStep, "message" | "delayDays">> }
+  | { type: "SIM_START" } | { type: "SIM_PAUSE" } | { type: "SIM_RESTART" } | { type: "SIM_TICK" }
+  | { type: "NOTIFY"; n: RefNotification }
+  | { type: "DISMISS_NOTIFICATION"; id: number }
+  | { type: "SAVE_CAMPAIGN"; campaign: Campaign }
+  | { type: "DELETE_CAMPAIGN"; id: string }
+  | { type: "CAMPAIGN_RESTART"; id: string }
+  | { type: "CAMPAIGN_SET_STATUS"; id: string; status: CampaignStatus }
+  | { type: "UPDATE_PROSPECT"; id: string; patch: Partial<Pick<Prospect, "name" | "title" | "company" | "city" | "country">> }
+  | { type: "DELETE_PROSPECT"; id: string }
+  | { type: "SELECT_PROSPECT"; id: string | null }
+  | { type: "HYDRATE"; state: RefState };
 
 const visibleProspect = (s: RefState, id: string) => {
   const p = s.prospects.find(x => x.id === id && !s.hiddenProspectIds.includes(id));
