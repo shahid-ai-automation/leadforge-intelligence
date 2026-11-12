@@ -23,6 +23,7 @@ const campaign: Campaign = {
   id: "adapter-c-1", name: "Synthetic campaign", objective: "service", status: "running",
   brief: null, prospectIds: [prospect.id], templates: [], sequence: [], config: {},
   createdAt: "fixed", events: [], simCursor: 5, prospectsContacted: 3, repliesDetected: 0,
+  config: {} as Campaign["config"],
 };
 const inbox: InboxItem = {
   id: "adapter-i-1", prospectId: prospect.id, campaignId: campaign.id,
