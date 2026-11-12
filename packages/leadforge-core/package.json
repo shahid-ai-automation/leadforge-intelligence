@@ -1,0 +1,13 @@
+{
+  "name": "@shahid-ai-automation/leadforge-core",
+  "version": "0.1.0",
+  "private": false,
+  "type": "module",
+  "description": "Anonymized LeadForge domain model and deterministic intelligence engine",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}
