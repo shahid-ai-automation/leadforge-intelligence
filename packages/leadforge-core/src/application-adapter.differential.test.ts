@@ -21,7 +21,7 @@ const prospect: Prospect = {
 };
 const campaign: Campaign = {
   id: "adapter-c-1", name: "Synthetic campaign", objective: "service", status: "running",
-  brief: null, prospectIds: [prospect.id], templates: [], sequence: [], config: {},
+  brief: null, prospectIds: [prospect.id], templates: [], sequence: [],
   createdAt: "fixed", events: [], simCursor: 5, prospectsContacted: 3, repliesDetected: 0,
   config: {} as Campaign["config"],
 };
