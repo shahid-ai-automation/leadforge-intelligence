@@ -9,7 +9,7 @@
  * injected synthetic records and deliberately has no demoData/store/network imports.
  */
 import type { ActivityEvent, Campaign, ChatMessage, Conversation, InboxItem, Prospect, PipelineStage, ReplyStatus, WorkflowStep, ICP, CampaignStatus } from "../model";
-import { analyzeBuyerIntent, calculateFitScore, calculateLeadPriority, qualifiesForHandoff, simulationScript, suggestedReplyFor } from "../engine";
+import { analyzeBuyerIntent, calculateFitScore, calculateLeadPriority, qualifiesForHandoff, simulationScript, suggestedReplyFor, matchesAnyIdentity, prospectIdentity } from "../engine";
 import { identityHashes } from "../suppression";
 import { editDraft, reviewDraft, type DraftMessage } from "../drafts";
 
@@ -28,6 +28,8 @@ export interface RefNotification {
 export interface RefState {
   prospects: Prospect[];
   icp: ICP;
+  demoIndustry: string;
+  industryIcps: Record<string, ICP>;
   workflow: WorkflowStep[];
   customProspects: Prospect[];
   runtime: Record<string, RefRuntime>;
@@ -47,6 +49,10 @@ export interface RefState {
 }
 export interface RefMeta { seed: string; at: string }
 export type RefAction =
+  | { type: "SET_ICP"; icp: ICP }
+  | { type: "SET_DEMO_INDUSTRY"; industry: string }
+  | { type: "ADD_PROSPECTS"; prospects: Prospect[] }
+  | { type: "DELETE_DRAFT"; prospectId: string }
   | { type: "SUBMIT_REPLY"; prospectId: string; text: string }
   | { type: "CAMPAIGN_SIM_NEXT"; id: string }
   | { type: "INBOX_APPROVE"; id: string; reply: string }
@@ -70,13 +76,37 @@ export type RefAction =
   | { type: "SELECT_PROSPECT"; id: string | null }
   | { type: "HYDRATE"; state: RefState };
 
-const visibleProspect = (s: RefState, id: string) => {
-  const p = s.prospects.find(x => x.id === id && !s.hiddenProspectIds.includes(id));
-  return p ? { ...p, ...(s.prospectEdits[id] ?? {}) } : undefined;
+const everyProspect = (s: RefState) => [...s.prospects, ...s.customProspects]
+  .map(p => s.prospectEdits[p.id] ? { ...p, ...s.prospectEdits[p.id] } : p);
+const allProspects = (s: RefState) => {
+  const hidden = new Set(s.hiddenProspectIds);
+  return everyProspect(s).filter(p => !hidden.has(p.id));
+};
+const visibleProspect = (s: RefState, id: string) => allProspects(s).find(p => p.id === id);
+const addSuppressions = (s: RefState, ids: string[]) => {
+  const out = { ...s.suppressions };
+  for (const id of ids) {
+    const original = [...s.prospects, ...s.customProspects].find(p => p.id === id);
+    if (!original) continue;
+    for (const hash of identityHashes(original)) out[hash] = id;
+    const edits = s.prospectEdits[id];
+    if (edits) for (const hash of identityHashes({ ...original, ...edits })) out[hash] = id;
+  }
+  return out;
+};
+const dedupeNewProspects = (existing: Prospect[], incoming: Prospect[]) => {
+  const ids = new Set(existing.map(p => p.id));
+  const known = existing.map(prospectIdentity);
+  const out: Prospect[] = [];
+  for (const p of incoming) {
+    const identity = prospectIdentity(p);
+    if (ids.has(p.id) || matchesAnyIdentity(identity, known)) continue;
+    ids.add(p.id); known.push(identity); out.push(p);
+  }
+  return out;
 };
 const optedOut = (s: RefState, id: string) => !!s.runtime[id]?.optedOut;
-const isSuppressed = (s: RefState, p: Prospect) =>
-  optedOut(s, p.id) || identityHashes(p).some(h => h in s.suppressions) || Object.values(s.suppressions).includes(p.id);
+const isSuppressed = (s: RefState, p: Prospect) => optedOut(s, p.id) || identityHashes(p).some(h => h in s.suppressions) || Object.values(s.suppressions).includes(p.id);
 
 export function referenceTransition(s: RefState, a: RefAction, meta: RefMeta, notificationStart = 100): RefState {
   let uidN = 0;
@@ -93,6 +123,28 @@ export function referenceTransition(s: RefState, a: RefAction, meta: RefMeta, no
   switch (a.type) {
     case "RESET":
       return { ...a.baseline, suppressions: { ...a.baseline.suppressions, ...s.suppressions } };
+    case "SET_ICP":
+      return { ...s, icp: a.icp, activity: log(s.activity, "sliders", "ICP configuration updated — all fit scores recalculated") };
+    case "SET_DEMO_INDUSTRY": {
+      const icp = s.industryIcps[a.industry];
+      if (!icp) return s;
+      return { ...s, demoIndustry: a.industry, icp, activity: log(s.activity, "sliders", `Demo industry set to ${a.industry} — ICP and fit scores updated`) };
+    }
+    case "ADD_PROSPECTS": {
+      const added = dedupeNewProspects([...s.prospects, ...s.customProspects, ...everyProspect(s)], a.prospects)
+        .filter(p => !isSuppressed(s, p));
+      if (added.length === 0) return s;
+      const runtime = { ...s.runtime };
+      for (const p of added) runtime[p.id] = {
+        stage: p.stage, replyStatus: p.replyStatus, intentScore: null, intentResult: null,
+        optedOut: p.replyStatus === "opted_out", lastActivity: p.lastActivity,
+      };
+      const customProspects = [...s.customProspects, ...added];
+      const optedIn = added.filter(p => p.replyStatus === "opted_out").map(p => p.id);
+      const next = { ...s, customProspects, runtime };
+      return { ...next, suppressions: optedIn.length ? addSuppressions(next, optedIn) : s.suppressions,
+        activity: log(s.activity, "radar", `${added.length} prospects added to the workspace`) };
+    }
     case "HYDRATE": return a.state;
     case "SELECT_PROSPECT": return { ...s, selectedProspectId: a.id };
     case "MOVE_STAGE": {
@@ -128,7 +180,7 @@ export function referenceTransition(s: RefState, a: RefAction, meta: RefMeta, no
       const clean:Partial<Pick<Prospect,"name"|"title"|"company"|"city"|"country">>={};
       for(const [k,v] of Object.entries(a.patch)){const t=typeof v==="string"?v.trim().slice(0,120):"";if(t)clean[k as keyof typeof clean]=t;}
       const prospectEdits={...s.prospectEdits,[a.id]:{...s.prospectEdits[a.id],...clean}};
-      const suppressions=optedOut(s,a.id)?Object.assign({...s.suppressions},...identityHashes({...p,...clean}).map(h=>({[h]:a.id}))):s.suppressions;
+      const editedState = { ...s, prospectEdits };\n      const suppressions = optedOut(s,a.id) ? addSuppressions(editedState,[a.id]) : s.suppressions;
       return {...s,prospectEdits,suppressions,activity:log(s.activity,"sliders",`Prospect ${clean.name??p.name} updated`)};
     }
     case "DELETE_PROSPECT": {
@@ -136,6 +188,11 @@ export function referenceTransition(s: RefState, a: RefAction, meta: RefMeta, no
       const isCustom=s.customProspects.some(x=>x.id===a.id),runtime={...s.runtime},prospectEdits={...s.prospectEdits};
       if(isCustom){delete runtime[a.id];delete prospectEdits[a.id];}
       return {...s,runtime,prospectEdits,customProspects:isCustom?s.customProspects.filter(x=>x.id!==a.id):s.customProspects,hiddenProspectIds:isCustom?s.hiddenProspectIds:[...s.hiddenProspectIds,a.id],campaigns:s.campaigns.map(c=>({...c,prospectIds:c.prospectIds.filter(id=>id!==a.id)})),inbox:s.inbox.filter(i=>i.prospectId!==a.id),selectedProspectId:s.selectedProspectId===a.id?null:s.selectedProspectId,activity:log(s.activity,"shield",isCustom?`Imported prospect ${p.name} deleted`:`Sample prospect ${p.name} hidden from this demo`)};
+    }
+    case "DELETE_DRAFT": {
+      const drafts = { ...s.drafts };
+      delete drafts[a.prospectId];
+      return { ...s, drafts };
     }
     case "SAVE_DRAFT": {
       if (optedOut(s, a.draft.prospectId)) return s;
