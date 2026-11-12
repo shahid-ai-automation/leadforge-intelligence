@@ -24,6 +24,8 @@ import { identityHashes } from "../suppression";
 import { editDraft, reviewDraft, type DraftMessage } from "../drafts";
 import type { RefAction, RefMeta, RefNotification, RefState } from "./reducer-harness";
 
+type ProspectEdit = Partial<Pick<Prospect, "name" | "title" | "company" | "city" | "country">>;
+
 const everyProspect = (s: RefState): Prospect[] =>
   [...s.prospects, ...s.customProspects]
     .map((p) => s.prospectEdits[p.id] ? { ...p, ...s.prospectEdits[p.id] } : p);
