@@ -101,4 +101,44 @@ describe("differential parity: pinned source reducer vs fixture-free harness", (
     const missingMove = { type: "MOVE_STAGE", prospectId: "missing", stage: "engaged" } as RefAction;
     expect(referenceTransition(base, missingMove, meta)).toEqual(pinnedReducerOracle(base, missingMove, meta));
   });
+  it.each(Array.from({ length: 9 }, (_, cursor) => cursor))("matches pinned campaign simulation at cursor %i", (cursor) => {
+    const input = state({ campaigns: [campaign([p.id], { simCursor: cursor })] });
+    const action: RefAction = { type: "CAMPAIGN_SIM_NEXT", id: "cmp-test" };
+    expect(referenceTransition(input, action, meta)).toEqual(pinnedReducerOracle(input, action, meta));
+  });
+
+  it("matches DNC guards for inbox approval, reminders, drafts and campaign simulation", () => {
+    const blockedState = state({
+      campaigns: [campaign([p.id])],
+      inbox: [item],
+      drafts: { [p.id]: draft },
+      runtime: { [p.id]: { stage: p.stage, replyStatus: "opted_out", intentScore: null, intentResult: null, optedOut: true, lastActivity: "opted out" } },
+      suppressions: Object.fromEntries(identityHashes(p).map(hash => [hash, p.id])),
+    });
+    const actions: RefAction[] = [
+      { type: "INBOX_APPROVE", id: item.id, reply: "Must not send" },
+      { type: "INBOX_REMINDER", id: item.id, days: 7 },
+      { type: "REVIEW_DRAFT", prospectId: p.id, status: "approved" },
+      { type: "CAMPAIGN_SIM_NEXT", id: "cmp-test" },
+      { type: "SAVE_DRAFT", draft: { ...draft, body: "Must not save" } },
+    ];
+    for (const action of actions) {
+      expect(referenceTransition(blockedState, action, meta)).toEqual(
+        pinnedReducerOracle(blockedState, action, meta),
+      );
+    }
+  });
+
+  it("matches re-import suppression after a prior opt-out", () => {
+    const blockedState = state({
+      runtime: { [p.id]: { stage: p.stage, replyStatus: "opted_out", intentScore: null, intentResult: null, optedOut: true, lastActivity: "opted out" } },
+      suppressions: Object.fromEntries(identityHashes(p).map(hash => [hash, p.id])),
+    });
+    const reimport = person("p-reimport", { name: p.name, company: p.company });
+    const action: RefAction = { type: "ADD_PROSPECTS", prospects: [reimport] };
+    expect(referenceTransition(blockedState, action, meta)).toEqual(
+      pinnedReducerOracle(blockedState, action, meta),
+    );
+  });
+
 });
