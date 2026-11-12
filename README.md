@@ -90,4 +90,4 @@ No license has been granted at this stage. All rights reserved unless a license 
 
 ## Source package
 
-The repository includes an isolated `packages/leadforge-core` source package with anonymized domain types and deterministic intelligence logic. The full application (UI, authentication, persistence, provider adapters, and deployment wiring) is not yet extracted; this repository does not claim to be a complete runnable product.
+The repository includes an isolated `packages/leadforge-core` source package with anonymized domain types, deterministic intelligence logic, pure ICP discovery helpers, DNC identity hashing, and draft-review rules. The full application (UI, authentication, persistence, provider adapters, and deployment wiring) is not yet extracted; this repository does not claim to be a complete runnable product.
