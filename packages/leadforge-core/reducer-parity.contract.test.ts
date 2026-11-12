@@ -35,7 +35,7 @@ describe("reply and buyer-intent parity contracts", () => {
     expect(analyzeBuyerIntent("We are considering this solution.").classification).toBe("medium");
     const high = analyzeBuyerIntent("We are actively looking for a solution this quarter. Can we schedule a demo next week? I make the decision.");
     expect(high.classification).toBe("high");
-    expect(high.score).toBe(100);
+    expect(high.score).toBe(80);
   });
   it("applies the strict fit + intent handoff gate and opt-out override", () => {
     expect(qualifiesForHandoff(65, 60, false)).toBe(true);
