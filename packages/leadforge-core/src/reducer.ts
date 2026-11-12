@@ -1,7 +1,8 @@
 /**
  * Fixture-free LeadForge state reducer.
  *
- * Behavioral oracle transcribed from the read-only Development Remix source:
+ * Extracted as a standalone implementation after differential verification against
+ * the pinned Development Remix reducer source:
  * src/components/outbound-intelligence/state.ts
  * pinned commit: d84685707d15a5f23321d35bdc3f9ddc7a950386
  *
