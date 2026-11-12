@@ -87,6 +87,19 @@ describe("fixture-free reducer reference parity harness", () => {
     expect(referenceTransition(blocked, { type: "CAMPAIGN_SIM_NEXT", id: "cmp-test" }, meta)).toBe(blocked);
   });
 
+  it("covers every scripted campaign simulation cursor and the terminal boundary", () => {
+    const p = person();
+    for (let cursor = 0; cursor < 9; cursor++) {
+      const s = state({ campaigns: [campaign([p.id], { simCursor: cursor })] });
+      const next = referenceTransition(s, { type: "CAMPAIGN_SIM_NEXT", id: "cmp-test" }, meta);
+      expect(next.campaigns[0]?.simCursor).toBe(cursor + 1);
+      expect(next.campaigns[0]?.events.at(-1)?.id).toBe(`ev-parity-seed-0`);
+      expect(next.campaigns[0]?.events.at(-1)?.at).toBe("12:34");
+    }
+    const terminal = state({ campaigns: [campaign([p.id], { simCursor: 9 })] });
+    expect(referenceTransition(terminal, { type: "CAMPAIGN_SIM_NEXT", id: "cmp-test" }, meta)).toBe(terminal);
+  });
+
   it("approves an awaiting inbox reply, records simulated conversation and notification", () => {
     const p = person();
     const item = { id: "in-1", prospectId: p.id, campaignId: "cmp-test", incomingText: "Interested", at: "11:00",
