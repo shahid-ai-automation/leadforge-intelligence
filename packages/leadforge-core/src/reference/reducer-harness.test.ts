@@ -32,6 +32,14 @@ const state = (overrides: Partial<RefState> = {}): RefState => {
 const meta = { seed: "parity-seed-", at: "12:34" };
 
 describe("fixture-free reducer reference parity harness", () => {
+  it("covers selection and workflow-step configuration transitions", () => {
+    const s = state();
+    expect(referenceTransition(s, { type: "SELECT_PROSPECT", id: "p-001" }, meta).selectedProspectId).toBe("p-001");
+    const changed = referenceTransition(s, { type: "UPDATE_STEP", stepId: "w4", patch: { message: "Human review required", delayDays: 2 } }, meta);
+    expect(changed.workflow.find(w => w.id === "w4")).toMatchObject({ message: "Human review required", delayDays: 2 });
+    expect(changed.activity[0]?.text).toBe("Outreach workflow configuration updated");
+  });
+
   it("covers ICP and demo-industry configuration actions", () => {
     const s = state();
     const nextIcp = { ...DEFAULT_ICP, sizeMin: 25 };
@@ -191,6 +199,31 @@ describe("fixture-free reducer reference parity harness", () => {
     expect(deleted.hiddenProspectIds).toContain("p-001");
     expect(deleted.selectedProspectId).toBeNull();
     expect(deleted.campaigns[0]?.prospectIds).toEqual([]);
+  });
+
+  it("suppresses edited identities after an opted-out prospect is updated", () => {
+    const p = person("p-001", { replyStatus: "opted_out" });
+    const s = state({
+      prospects: [p],
+      runtime: { [p.id]: { stage: p.stage, replyStatus: "opted_out", intentScore: null, intentResult: null, optedOut: true, lastActivity: "opted out" } },
+    });
+    const changed = referenceTransition(s, { type: "UPDATE_PROSPECT", id: p.id, patch: { name: "Alex Newname", company: "New Company" } }, meta);
+    const edited = { ...p, name: "Alex Newname", company: "New Company" };
+    for (const hash of identityHashes(edited)) expect(changed.suppressions[hash]).toBe(p.id);
+  });
+
+  it("deletes imported prospects completely while preserving unrelated records", () => {
+    const imported = person("p-import", { name: "Morgan Lee", company: "Imported Co" });
+    const base = state({ customProspects: [imported], runtime: {
+      "p-001": state().runtime["p-001"]!,
+      "p-import": { stage: imported.stage, replyStatus: imported.replyStatus, intentScore: null, intentResult: null, optedOut: false, lastActivity: imported.lastActivity },
+    }, selectedProspectId: imported.id });
+    const next = referenceTransition(base, { type: "DELETE_PROSPECT", id: imported.id }, meta);
+    expect(next.customProspects).toHaveLength(0);
+    expect(next.runtime[imported.id]).toBeUndefined();
+    expect(next.prospectEdits[imported.id]).toBeUndefined();
+    expect(next.selectedProspectId).toBeNull();
+    expect(next.hiddenProspectIds).not.toContain(imported.id);
   });
 
   it("supports hydrate as exact replacement", () => {
