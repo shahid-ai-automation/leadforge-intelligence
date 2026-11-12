@@ -86,3 +86,8 @@ The development work includes unit and integration-oriented tests for campaign s
 ## License
 
 No license has been granted at this stage. All rights reserved unless a license is added explicitly.
+
+
+## Source package
+
+The repository includes an isolated `packages/leadforge-core` source package with anonymized domain types and deterministic intelligence logic. The full application (UI, authentication, persistence, provider adapters, and deployment wiring) is not yet extracted; this repository does not claim to be a complete runnable product.
