@@ -5,3 +5,4 @@ export * from "./suppression";
 export * from "./discovery";
 export * from "./workspace";
 export * from "./reducer";
+export * from "./application-adapter";
