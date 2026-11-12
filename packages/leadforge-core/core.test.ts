@@ -102,3 +102,57 @@ describe("identity suppression and workspace isolation", () => {
     expect(isProspectSuppressed({ runtime: {}, suppressions }, optedOut)).toBe(true);
   });
 });
+
+describe("workspace helper parity contracts", () => {
+  it("keeps hidden seed records in the known catalog for suppression", () => {
+    const hiddenSeed = prospect({ id: "seed-hidden", name: "Casey Morgan" });
+    const state = {
+      customProspects: [],
+      hiddenProspectIds: ["seed-hidden"],
+      prospectEdits: {},
+      runtime: { "seed-hidden": { optedOut: true } },
+      suppressions: {},
+    };
+    const derived = deriveOptOutSuppressions([hiddenSeed], state);
+    expect(Object.keys(derived).length).toBeGreaterThan(0);
+    expect(isProspectSuppressed({ runtime: {}, suppressions: derived }, hiddenSeed)).toBe(true);
+  });
+
+  it("retains both original and edited identities in the append-only suppression map", () => {
+    const original = prospect({ id: "p-edit", name: "Taylor Original" });
+    const edited = { name: "Taylor Updated", company: "Updated Company" };
+    const previous = { "legacy-fingerprint": "older-record" };
+    const suppressions = deriveOptOutSuppressions([original], {
+      customProspects: [],
+      prospectEdits: { "p-edit": edited },
+      runtime: { "p-edit": { optedOut: true } },
+      suppressions: previous,
+    });
+    expect(suppressions["legacy-fingerprint"]).toBe("older-record");
+    expect(isProspectSuppressed({ runtime: {}, suppressions }, original)).toBe(true);
+    expect(isProspectSuppressed({ runtime: {}, suppressions }, { ...original, ...edited })).toBe(true);
+  });
+
+  it("blocks a stored prospect ID even when its current identity fields differ", () => {
+    const changed = prospect({ id: "p-id-blocked", name: "Different Person", company: "Different Co" });
+    expect(isProspectSuppressed({
+      runtime: {},
+      suppressions: { "historical-key": "p-id-blocked" },
+    }, changed)).toBe(true);
+  });
+
+  it("does not mutate caller-owned collection or suppression objects", () => {
+    const record = prospect();
+    const state = {
+      customProspects: [],
+      hiddenProspectIds: [],
+      prospectEdits: { "p-1": { company: "Local Company" } },
+      runtime: { "p-1": { optedOut: true } },
+      suppressions: { "existing-key": "older-id" },
+    };
+    const before = structuredClone(state);
+    const result = deriveOptOutSuppressions([record], state);
+    expect(state).toEqual(before);
+    expect(result).not.toBe(state.suppressions);
+  });
+});
