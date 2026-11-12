@@ -1,0 +1,32 @@
+name: LeadForge core typecheck
+
+on:
+  push:
+    paths:
+      - "packages/leadforge-core/**"
+      - ".github/workflows/leadforge-core.yml"
+  pull_request:
+    paths:
+      - "packages/leadforge-core/**"
+      - ".github/workflows/leadforge-core.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/leadforge-core
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install package dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Run strict TypeScript check
+        run: npm run typecheck
