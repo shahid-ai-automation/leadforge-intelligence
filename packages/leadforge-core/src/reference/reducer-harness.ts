@@ -93,6 +93,50 @@ export function referenceTransition(s: RefState, a: RefAction, meta: RefMeta, no
   switch (a.type) {
     case "RESET":
       return { ...a.baseline, suppressions: { ...a.baseline.suppressions, ...s.suppressions } };
+    case "HYDRATE": return a.state;
+    case "SELECT_PROSPECT": return { ...s, selectedProspectId: a.id };
+    case "MOVE_STAGE": {
+      const rt=s.runtime[a.prospectId], p=visibleProspect(s,a.prospectId);
+      if (!rt || !p || rt.optedOut) return s;
+      return { ...s, runtime:{...s.runtime,[a.prospectId]:{...rt,stage:a.stage,lastActivity:`Moved manually · ${now()}`}},activity:log(s.activity,"gitbranch",`${p.name} moved to stage “${a.stage}” manually`) };
+    }
+    case "UPDATE_STEP": return { ...s, workflow:s.workflow.map(w=>w.id===a.stepId?{...w,...a.patch}:w),activity:log(s.activity,"send","Outreach workflow configuration updated") };
+    case "SIM_START": return { ...s, simRunning:true };
+    case "SIM_PAUSE": return { ...s, simRunning:false };
+    case "SIM_RESTART": return { ...s, simRunning:true, simCursor:0, workflow:s.workflow.map(w=>({...w,status:"pending"})) };
+    case "SIM_TICK": {
+      if (!s.simRunning || s.simCursor>=s.workflow.length) return {...s,simRunning:false};
+      const workflow=s.workflow.map((w,i)=>({...w,status:i<s.simCursor?"done" as const:i===s.simCursor?"active" as const:"pending" as const}));
+      const step=s.workflow[s.simCursor];
+      return {...s,workflow,simCursor:s.simCursor+1,simRunning:s.simCursor+1<s.workflow.length,activity:step?log(s.activity,"send",`Workflow step executed: ${step.label} (simulated)`):s.activity};
+    }
+    case "NOTIFY": return {...s,notifications:[...s.notifications,a.n].slice(-3),notifHistory:[a.n,...s.notifHistory].slice(0,50)};
+    case "DISMISS_NOTIFICATION": return {...s,notifications:s.notifications.filter(n=>n.id!==a.id)};
+    case "SAVE_CAMPAIGN": {
+      const exists=s.campaigns.some(c=>c.id===a.campaign.id);
+      return {...s,campaigns:exists?s.campaigns.map(c=>c.id===a.campaign.id?a.campaign:c):[...s.campaigns,a.campaign],activity:log(s.activity,"send",exists?`Campaign “${a.campaign.name}” updated`:`Campaign “${a.campaign.name}” created with ${a.campaign.prospectIds.length} prospects`)};
+    }
+    case "DELETE_CAMPAIGN": return {...s,campaigns:s.campaigns.filter(c=>c.id!==a.id)};
+    case "CAMPAIGN_RESTART": return {...s,campaigns:s.campaigns.map(c=>c.id===a.id?{...c,events:[],simCursor:0,prospectsContacted:0,repliesDetected:0,status:"approved"}:c)};
+    case "CAMPAIGN_SET_STATUS": {
+      const campaign=s.campaigns.find(c=>c.id===a.id); if(!campaign)return s;
+      const labels:Record<string,string>={approved:`Campaign “${campaign.name}” approved — eligible for demo initiation`,running:`Campaign “${campaign.name}” initiated — Demo Mode simulation running`,paused:`Campaign “${campaign.name}” paused — simulated activity stopped`,stopped:`Campaign “${campaign.name}” stopped`,in_review:`Campaign “${campaign.name}” saved for review`,draft:`Campaign “${campaign.name}” saved as draft`};
+      return {...s,campaigns:s.campaigns.map(c=>c.id===a.id?{...c,status:a.status}:c),activity:log(s.activity,"send",labels[a.status]??`Campaign “${campaign.name}” → ${a.status}`)};
+    }
+    case "UPDATE_PROSPECT": {
+      const p=visibleProspect(s,a.id); if(!p)return s;
+      const clean:Partial<Pick<Prospect,"name"|"title"|"company"|"city"|"country">>={};
+      for(const [k,v] of Object.entries(a.patch)){const t=typeof v==="string"?v.trim().slice(0,120):"";if(t)clean[k as keyof typeof clean]=t;}
+      const prospectEdits={...s.prospectEdits,[a.id]:{...s.prospectEdits[a.id],...clean}};
+      const suppressions=optedOut(s,a.id)?Object.assign({...s.suppressions},...identityHashes({...p,...clean}).map(h=>({[h]:a.id}))):s.suppressions;
+      return {...s,prospectEdits,suppressions,activity:log(s.activity,"sliders",`Prospect ${clean.name??p.name} updated`)};
+    }
+    case "DELETE_PROSPECT": {
+      const p=visibleProspect(s,a.id);if(!p)return s;
+      const isCustom=s.customProspects.some(x=>x.id===a.id),runtime={...s.runtime},prospectEdits={...s.prospectEdits};
+      if(isCustom){delete runtime[a.id];delete prospectEdits[a.id];}
+      return {...s,runtime,prospectEdits,customProspects:isCustom?s.customProspects.filter(x=>x.id!==a.id):s.customProspects,hiddenProspectIds:isCustom?s.hiddenProspectIds:[...s.hiddenProspectIds,a.id],campaigns:s.campaigns.map(c=>({...c,prospectIds:c.prospectIds.filter(id=>id!==a.id)})),inbox:s.inbox.filter(i=>i.prospectId!==a.id),selectedProspectId:s.selectedProspectId===a.id?null:s.selectedProspectId,activity:log(s.activity,"shield",isCustom?`Imported prospect ${p.name} deleted`:`Sample prospect ${p.name} hidden from this demo`)};
+    }
     case "SAVE_DRAFT": {
       if (optedOut(s, a.draft.prospectId)) return s;
       const draft = editDraft(s.drafts[a.draft.prospectId], a.draft);
