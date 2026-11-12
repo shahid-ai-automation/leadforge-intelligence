@@ -8,6 +8,7 @@ An anonymized extraction of reusable LeadForge domain logic. This is a core libr
 - `engine.ts` — deterministic ICP scoring, role matching, buyer-intent classification, identity normalization, campaign brief composition, message templating, sequence construction, and readiness logic.
 - `discovery.ts` — pure ICP filtering and import outcome helpers. It operates only on records supplied by the caller; it does not collect data or contact providers.
 - `suppression.ts` — synchronous SHA-256 identity fingerprints for Do Not Contact matching.
+- `workspace.ts` — fixture-independent prospect collection, deduplication, workspace edits, and append-only suppression helpers; seed catalogs are injected by the caller.
 - `drafts.ts` — draft editing and review-state transition rules.
 - `index.ts` — public exports.
 
@@ -30,4 +31,4 @@ npm run typecheck
 
 Extracted from the isolated LeadForge Development Remix source at commit `d84685707d15a5f23321d35bdc3f9ddc7a950386`. The source extraction has been text-audited for customer references and fixture leakage. Typecheck and focused regression tests are not yet verified in this environment.
 
-Persistence, authentication, AI-provider adapters, workspace state, UI, and deployment remain outside this package.
+Persistence, authentication, AI-provider adapters, the demo-seeded application reducer, UI, and deployment remain outside this package.
