@@ -71,7 +71,9 @@ demo data; only imported profiles and mutable workspace state are stored.
 The app reducer adapter must return an `LFIState`-shaped result so the existing
 mapper contract stays unchanged.
 
-## Proposed adapter contract (design only; not implemented)
+## Isolated adapter implementation
+
+Implemented in `packages/leadforge-core/src/application-adapter.ts`, with public exports from `src/index.ts` and six contract tests in `src/application-adapter.test.ts`.
 
 1. `toCoreState(appState)` creates a `LeadForgeState` by injecting
    `DEMO_PROSPECTS` and `DEMO_ICPS`, then copying all mutable app state fields.
@@ -111,10 +113,24 @@ mapper contract stays unchanged.
 - Browser optimistic output equals authoritative server output for all action
   classes, including reset, import, draft version conflict and DNC blocks.
 
+## Validation
+
+Latest successful CI after adapter implementation:
+- Run: [43315076602](https://github.com/shahid-ai-automation/leadforge-intelligence/actions/runs/43315076602)
+- Commit: `f9e6ef73a9fe6d78f545302fff1eae23bf420243`
+- Strict TypeScript: PASS
+- 5 test files: PASS
+- 99 tests: PASS, including six adapter contract tests.
+
+The tests cover state round-trip/catalogue exclusion, required reset baseline and
+DNC preservation, exact hydrate replacement, preservation of expected-version
+and authorization metadata, unknown-industry rejection, and notification ID
+continuity using a caller-owned counter.
+
 ## Decision
 
-**Boundary audit: complete. Adapter: designed, not implemented. Application
-integration: not started.**
+**Boundary audit: complete. Isolated adapter: implemented and unit-tested.
+Application integration: not started.**
 
 The standalone reducer package and its differential suite remain isolated.
 Do not replace the Development Remix reducer or alter its store/server code
