@@ -221,5 +221,7 @@ export function referenceTransition(s: RefState, a: RefAction, meta: RefMeta, no
     }
     case "INBOX_DISMISS":
       return { ...s, inbox: s.inbox.map(i => i.id === a.id ? { ...i, status: "dismissed" } : i) };
+    default:
+      return s;
   }
 }
