@@ -51,7 +51,7 @@ describe("fixture-free reducer reference parity harness", () => {
     expect(added.runtime["p-002"]?.stage).toBe("outreach");
     const blocked = state({ suppressions: Object.fromEntries(identityHashes(newcomer).map(h => [h, "old-id"])) });
     expect(referenceTransition(blocked, { type: "ADD_PROSPECTS", prospects: [newcomer] }, meta)).toBe(blocked);
-    const optedOut = person("p-004", { replyStatus: "opted_out" });
+    const optedOut = person("p-004", { name: "Taylor Quinn", company: "Harbor Analytics", replyStatus: "opted_out" });
     const addedOptOut = referenceTransition(s, { type: "ADD_PROSPECTS", prospects: [optedOut] }, meta);
     expect(addedOptOut.runtime["p-004"]?.optedOut).toBe(true);
     expect(Object.values(addedOptOut.suppressions)).toContain("p-004");
