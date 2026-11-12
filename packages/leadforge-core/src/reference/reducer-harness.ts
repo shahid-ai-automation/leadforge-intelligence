@@ -27,6 +27,7 @@ export interface RefNotification {
 }
 export interface RefState {
   prospects: Prospect[];
+  icp: import("../model").ICP;
   runtime: Record<string, RefRuntime>;
   campaigns: Campaign[];
   inbox: InboxItem[];
@@ -94,7 +95,7 @@ export function referenceTransition(s: RefState, a: RefAction, meta: RefMeta, no
       const rt = s.runtime[a.prospectId];
       if (!p || !rt) return s;
       const result = analyzeBuyerIntent(a.text);
-      const fit = calculateFitScore(p, { industries: [p.industry], countries: [p.country], sizeMin: 1, sizeMax: 100000, roles: [p.title], challenges: [], services: [] }).total;
+      const fit = calculateFitScore(p, s.icp).total;
       const wasOptedOut = rt.optedOut;
       const isOptOutReply = wasOptedOut || result.classification === "do_not_contact";
       const replyStatus: ReplyStatus = isOptOutReply ? "opted_out" : result.classification === "negative" ? "negative" : result.classification === "neutral" ? "neutral" : "positive";
