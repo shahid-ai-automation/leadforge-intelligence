@@ -21,7 +21,7 @@ const campaign = (prospectIds: string[], overrides: Partial<Campaign> = {}) => (
 const state = (overrides: Partial<RefState> = {}): RefState => {
   const p = person();
   return {
-    prospects: [p], icp: DEFAULT_ICP, workflow: DEFAULT_WORKFLOW, customProspects: [],
+    prospects: [p], icp: DEFAULT_ICP, demoIndustry: "B2B SaaS", industryIcps: { "B2B SaaS": DEFAULT_ICP, "Healthcare": { ...DEFAULT_ICP, industries: ["Healthcare"] } }, workflow: DEFAULT_WORKFLOW, customProspects: [],
     runtime: { [p.id]: { stage: p.stage, replyStatus: p.replyStatus, intentScore: null, intentResult: null, optedOut: false, lastActivity: p.lastActivity } },
     campaigns: [], inbox: [], conversations: [], drafts: {}, suppressions: {},
     activity: [], notifications: [], notifHistory: [], selectedProspectId: null,
@@ -32,6 +32,38 @@ const state = (overrides: Partial<RefState> = {}): RefState => {
 const meta = { seed: "parity-seed-", at: "12:34" };
 
 describe("fixture-free reducer reference parity harness", () => {
+  it("covers ICP and demo-industry configuration actions", () => {
+    const s = state();
+    const nextIcp = { ...DEFAULT_ICP, sizeMin: 25 };
+    expect(referenceTransition(s, { type: "SET_ICP", icp: nextIcp }, meta).icp.sizeMin).toBe(25);
+    const switched = referenceTransition(s, { type: "SET_DEMO_INDUSTRY", industry: "Healthcare" }, meta);
+    expect(switched.demoIndustry).toBe("Healthcare");
+    expect(switched.icp.industries).toEqual(["Healthcare"]);
+    expect(referenceTransition(s, { type: "SET_DEMO_INDUSTRY", industry: "Unknown" }, meta)).toBe(s);
+  });
+
+  it("adds only new prospects, rejects identity duplicates and suppresses DNC identities", () => {
+    const s = state();
+    const newcomer = person("p-002", { name: "Jamie Reed", email: undefined } as any);
+    const duplicate = person("p-003", { name: "Alex Morgan" });
+    const added = referenceTransition(s, { type: "ADD_PROSPECTS", prospects: [newcomer, duplicate, newcomer] }, meta);
+    expect(added.customProspects.map(p => p.id)).toEqual(["p-002"]);
+    expect(added.runtime["p-002"]?.stage).toBe("outreach");
+    const blocked = state({ suppressions: Object.fromEntries(identityHashes(newcomer).map(h => [h, "old-id"])) });
+    expect(referenceTransition(blocked, { type: "ADD_PROSPECTS", prospects: [newcomer] }, meta)).toBe(blocked);
+    const optedOut = person("p-004", { replyStatus: "opted_out" });
+    const addedOptOut = referenceTransition(s, { type: "ADD_PROSPECTS", prospects: [optedOut] }, meta);
+    expect(addedOptOut.runtime["p-004"]?.optedOut).toBe(true);
+    expect(Object.values(addedOptOut.suppressions)).toContain("p-004");
+  });
+
+  it("deletes drafts without mutating the prior state", () => {
+    const s = state({ drafts: { "p-001": { prospectId: "p-001", category: "intro", body: "draft", approved: false, status: "draft", version: 1 } } });
+    const next = referenceTransition(s, { type: "DELETE_DRAFT", prospectId: "p-001" }, meta);
+    expect(next.drafts["p-001"]).toBeUndefined();
+    expect(s.drafts["p-001"]).toBeDefined();
+  });
+
   it("records incoming replies, classifies intent, and appends conversation messages", () => {
     const s = state();
     const text = "We are actively looking for help. Can we schedule a demo next week?";
