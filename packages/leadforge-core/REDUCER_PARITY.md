@@ -1,49 +1,65 @@
-# Reducer parity reference harness
+# Reducer differential parity audit
 
-## Oracle and boundary
+## Pinned source and oracle
 
-The reference behavior is transcribed from the read-only Development Remix source
-`src/components/outbound-intelligence/state.ts` at pinned commit
+The behavioral source is the read-only Development Remix file
+`src/components/outbound-intelligence/state.ts` at commit
 `d84685707d15a5f23321d35bdc3f9ddc7a950386`.
 
-The harness is deliberately isolated from `demoData`, browser state, Supabase,
-network access, real contacts, and the application store. Tests construct synthetic
-prospects, campaigns, inbox items, and deterministic action metadata.
+`src/reference/pinned-reducer.oracle.ts` contains the reducer switch body copied
+from that exact pinned source. It is test-only and does not import application
+fixtures, UI, browser state, Supabase, or network modules. The following boundary
+adaptations are documented in the oracle header:
+- seeded prospects and ICP configurations are injected through synthetic `RefState`;
+- `RESET` receives an injected synthetic baseline instead of calling application `seedState()`;
+- clock, random ID generation, and module-global notification IDs are deterministic per comparison.
 
-This is a behavior-reference harness, not an extracted production reducer. It does
-not import the original application reducer at runtime; parity is assessed against
-the pinned source contract recorded here. Therefore a passing suite is evidence
-for the covered transitions, not proof of whole-application equivalence.
+`src/reference/reducer-harness.ts` is the independent fixture-free implementation
+under comparison. Differential tests execute both functions against identical
+synthetic states and actions, then compare the complete resulting state.
 
-## Covered transition contracts
+## Differential coverage
 
-| Area | Pinned behavior under test |
-| --- | --- |
-| Reply / intent | Analyze incoming reply, append prospect message, update runtime intent and reply status |
-| DNC | Opt-out is sticky; store identity hashes; subsequent positive reply cannot clear opt-out |
-| Campaign simulation | Running campaign advances deterministic script; connection acceptance updates stage; reply creates inbox item, conversation and notification |
-| Campaign guards | Non-running campaigns and fully opted-out audiences do not advance |
-| Inbox approval | Awaiting/reminder item may be approved; record simulated reply and notification; high intent qualifies |
-| Inbox review | Reminder, reject and dismiss transitions preserve their distinct statuses |
-| Inbox DNC guard | Approval and reminders are blocked for opted-out prospects |
-| Reset | Replace session state while preserving accumulated DNC suppression fingerprints |
-| Draft review | Draft approval increments version; approved content is read-only; opt-out blocks approval |
-| Deterministic metadata | Identical action metadata yields stable activity/event IDs and timestamps |
+The differential suite covers all reducer action branches:
+- reply classification, intent/handoff, sticky opt-out and identity suppression;
+- campaign simulation, all nine script cursors, terminal boundaries, status and restart;
+- inbox approve, reminder, reject, dismiss, and DNC blocking;
+- draft save/review/delete and DNC approval guards;
+- prospect add/dedupe, edit, delete, hidden sample behavior and imported deletion;
+- ICP/industry, selection, workflow updates and workflow simulation;
+- notification queue/history caps and dismissal;
+- reset with append-only DNC preservation and hydrate replacement;
+- missing-record no-op behavior and deterministic IDs/timestamps.
 
-## Deliberately not yet covered
+Tests compare deep state equality, not only action names or selected fields.
+The oracle and harness share pure domain helpers (intent, scoring, script,
+identity hashing, draft transitions); this audit validates reducer transition
+wiring and state effects, not independent re-derivation of those domain algorithms.
 
-Before production reducer extraction, extend the matrix to cover all campaign script
-cursor positions and terminal boundaries, duplicate/hidden prospect handling,
-manual stage changes, every notification cap/history interaction, reset after
-multiple opt-outs and edits, malformed/missing record behavior, and the complete
-action union (including HYDRATE, campaign status/restart, draft delete, and workflow
-simulation controls).
+## Mismatch found and corrected
 
-## Extraction gate
+The first executable differential run exposed a real mismatch in `SUBMIT_REPLY`
+after an opt-out: the harness wrote hashes only for the currently edited prospect,
+while the pinned reducer's `addSuppressions` stores both the original identity
+and the edited identity. The harness was corrected to use the same append-only
+suppression helper. A dedicated regression test now protects both fingerprints.
 
-Do not extract `state.ts` until:
-1. the missing transition matrix above is implemented with fixture-free inputs;
-2. reference expectations are reviewed against the pinned source;
-3. strict TypeScript and all regression tests pass in CI;
-4. each future extracted module is introduced behind parity tests, with no UI,
-   persistence, production, or external-send changes in this workstream.
+## Validation status
+
+Latest verified GitHub Actions run:
+- Commit: `6972aae108077f934fc9018901093178b610a76c`
+- Run: [43312223569](https://github.com/shahid-ai-automation/leadforge-intelligence/actions/runs/43312223569)
+- Strict TypeScript check: PASS
+- Focused tests: 82 PASS across 4 files
+
+The expanded all-cursor and DNC-guard matrix was added after that run and is
+awaiting its own CI result. Do not treat this audit as complete until the latest
+expanded suite is green.
+
+## Explicit boundaries
+
+- No reducer extraction is authorized by this audit.
+- The pinned `state.ts` remains read-only and unchanged.
+- Development Remix and Production remain untouched.
+- No demo fixture, browser, database, real prospect, external account, or live
+  outbound send is used by this differential test package.
