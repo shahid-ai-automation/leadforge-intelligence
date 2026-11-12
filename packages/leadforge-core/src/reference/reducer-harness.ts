@@ -241,7 +241,7 @@ export function referenceTransition(s: RefState, a: RefAction, meta: RefMeta, no
       const conversations = s.conversations.some(c => c.prospectId === p.id)
         ? s.conversations.map(c => c.prospectId === p.id ? { ...c, messages: [...c.messages, msg] } : c)
         : [...s.conversations, { prospectId: p.id, channel: p.channel, messages: [msg] }];
-      const suppressions = isOptOutReply ? Object.assign({ ...s.suppressions }, ...identityHashes(p).map(h => ({ [h]: p.id }))) : s.suppressions;
+      const suppressions = isOptOutReply ? addSuppressions(s, [p.id]) : s.suppressions;
       return { ...s, conversations, activity, notifications, notifHistory, suppressions,
         runtime: { ...s.runtime, [p.id]: { ...rt, stage, replyStatus, optedOut: isOptOutReply, intentScore: result.score, intentResult: result, lastActivity: `Replied · ${now()}` } } };
     }
