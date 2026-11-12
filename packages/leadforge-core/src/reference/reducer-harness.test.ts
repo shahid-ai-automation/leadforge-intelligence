@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_ICP, type Campaign, type Prospect } from "../model";
+import { DEFAULT_ICP, DEFAULT_WORKFLOW, type Campaign, type Prospect } from "../model";
 import { analyzeBuyerIntent } from "../engine";
 import { identityHashes } from "../suppression";
 import { referenceTransition, type RefState } from "./reducer-harness";
@@ -21,7 +21,7 @@ const campaign = (prospectIds: string[], overrides: Partial<Campaign> = {}) => (
 const state = (overrides: Partial<RefState> = {}): RefState => {
   const p = person();
   return {
-    prospects: [p], icp: DEFAULT_ICP,
+    prospects: [p], icp: DEFAULT_ICP, workflow: DEFAULT_WORKFLOW, customProspects: [],
     runtime: { [p.id]: { stage: p.stage, replyStatus: p.replyStatus, intentScore: null, intentResult: null, optedOut: false, lastActivity: p.lastActivity } },
     campaigns: [], inbox: [], conversations: [], drafts: {}, suppressions: {},
     activity: [], notifications: [], notifHistory: [], selectedProspectId: null,
@@ -98,6 +98,73 @@ describe("fixture-free reducer reference parity harness", () => {
     }
     const terminal = state({ campaigns: [campaign([p.id], { simCursor: 9 })] });
     expect(referenceTransition(terminal, { type: "CAMPAIGN_SIM_NEXT", id: "cmp-test" }, meta)).toBe(terminal);
+  });
+
+  it("guards manual stage movement after opt-out and allows valid movement", () => {
+    const s = state();
+    const moved = referenceTransition(s, { type: "MOVE_STAGE", prospectId: "p-001", stage: "engaged" }, meta);
+    expect(moved.runtime["p-001"]?.stage).toBe("engaged");
+    const opted = state({ runtime: { "p-001": { ...s.runtime["p-001"]!, optedOut: true, replyStatus: "opted_out" } } });
+    expect(referenceTransition(opted, { type: "MOVE_STAGE", prospectId: "p-001", stage: "qualified" }, meta)).toBe(opted);
+  });
+
+  it("covers workflow simulation start, pause, restart, tick and terminal behavior", () => {
+    const s = state();
+    const started = referenceTransition(s, { type: "SIM_START" }, meta);
+    expect(started.simRunning).toBe(true);
+    const ticked = referenceTransition(started, { type: "SIM_TICK" }, meta);
+    expect(ticked.simCursor).toBe(1);
+    expect(ticked.workflow[0]?.status).toBe("active");
+    const paused = referenceTransition(ticked, { type: "SIM_PAUSE" }, meta);
+    expect(referenceTransition(paused, { type: "SIM_TICK" }, meta).simCursor).toBe(1);
+    const restarted = referenceTransition(paused, { type: "SIM_RESTART" }, meta);
+    expect(restarted.simCursor).toBe(0);
+    expect(restarted.workflow.every(w => w.status === "pending")).toBe(true);
+    const terminal = referenceTransition({ ...started, simCursor: started.workflow.length }, { type: "SIM_TICK" }, meta);
+    expect(terminal.simRunning).toBe(false);
+  });
+
+  it("keeps notification queue and history caps", () => {
+    const s = state({ notifications: [1,2,3].map(id => ({ id, title: "old", body: "", tone: "info" as const })), notifHistory: Array.from({length:50},(_,i)=>({id:i,title:"old",body:"",tone:"info" as const})) });
+    const next = referenceTransition(s, { type: "NOTIFY", n: { id: 99, title: "new", body: "", tone: "success" } }, meta);
+    expect(next.notifications).toHaveLength(3);
+    expect(next.notifications.at(-1)?.title).toBe("new");
+    expect(next.notifHistory).toHaveLength(50);
+    expect(next.notifHistory[0]?.title).toBe("new");
+    expect(referenceTransition(next, { type: "DISMISS_NOTIFICATION", id: 99 }, meta).notifications.some(n=>n.id===99)).toBe(false);
+  });
+
+  it("covers campaign create/update, status and restart transitions", () => {
+    const c = campaign(["p-001"]);
+    const s = state();
+    const created = referenceTransition(s, { type: "SAVE_CAMPAIGN", campaign: c }, meta);
+    expect(created.campaigns).toHaveLength(1);
+    const updated = referenceTransition(created, { type: "SAVE_CAMPAIGN", campaign: { ...c, name: "Renamed" } }, meta);
+    expect(updated.campaigns).toHaveLength(1);
+    expect(updated.campaigns[0]?.name).toBe("Renamed");
+    const running = referenceTransition(updated, { type: "CAMPAIGN_SET_STATUS", id: c.id, status: "running" }, meta);
+    expect(running.campaigns[0]?.status).toBe("running");
+    const progressed = { ...running, campaigns: [{ ...running.campaigns[0]!, simCursor: 5, prospectsContacted: 3, repliesDetected: 1, events: [{id:"ev",at:"x",text:"event"}] }] };
+    const reset = referenceTransition(progressed, { type: "CAMPAIGN_RESTART", id: c.id }, meta);
+    expect(reset.campaigns[0]).toMatchObject({ status: "approved", simCursor: 0, prospectsContacted: 0, repliesDetected: 0, events: [] });
+    expect(referenceTransition(reset, { type: "DELETE_CAMPAIGN", id: c.id }, meta).campaigns).toHaveLength(0);
+  });
+
+  it("covers prospect edit normalization, delete and hidden sample behavior", () => {
+    const s = state({ campaigns: [campaign(["p-001"])] , selectedProspectId: "p-001" });
+    const edited = referenceTransition(s, { type: "UPDATE_PROSPECT", id: "p-001", patch: { name: "  Alex Updated  ", company: "  " } }, meta);
+    expect(edited.prospectEdits["p-001"]?.name).toBe("Alex Updated");
+    expect(edited.prospectEdits["p-001"]?.company).toBeUndefined();
+    const deleted = referenceTransition(edited, { type: "DELETE_PROSPECT", id: "p-001" }, meta);
+    expect(deleted.hiddenProspectIds).toContain("p-001");
+    expect(deleted.selectedProspectId).toBeNull();
+    expect(deleted.campaigns[0]?.prospectIds).toEqual([]);
+  });
+
+  it("supports hydrate as exact replacement", () => {
+    const s = state();
+    const hydrated = state({ selectedProspectId: "p-001" });
+    expect(referenceTransition(s, { type: "HYDRATE", state: hydrated }, meta)).toBe(hydrated);
   });
 
   it("approves an awaiting inbox reply, records simulated conversation and notification", () => {
