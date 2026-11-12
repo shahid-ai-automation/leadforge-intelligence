@@ -1,4 +1,4 @@
-name: LeadForge core typecheck
+name: LeadForge core validation
 
 on:
   push:
@@ -14,7 +14,7 @@ permissions:
   contents: read
 
 jobs:
-  typecheck:
+  validate:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -26,7 +26,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: packages/leadforge-core/package-lock.json
       - name: Install package dependencies
         run: npm install --ignore-scripts --no-audit --no-fund
       - name: Run strict TypeScript check
         run: npm run typecheck
+      - name: Run focused regression tests
+        run: npm test
