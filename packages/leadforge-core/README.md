@@ -11,6 +11,7 @@ An anonymized extraction of reusable LeadForge domain logic. This is a core libr
 - `workspace.ts` — fixture-independent prospect collection, deduplication, workspace edits, and append-only suppression helpers; seed catalogs are injected by the caller.
 - `drafts.ts` — draft editing and review-state transition rules.
 - `reducer.ts` — deterministic, fixture-free state transitions for campaigns, prospects, inbox, drafts, DNC, notifications, workflow simulation, and reset/hydration boundaries.
+- `application-adapter.ts` — typed app/core state and action boundary; injected seed catalogues, reset baseline, metadata preservation, and caller-owned notification counter.
 - `index.ts` — public exports.
 
 ## Deliberately excluded
@@ -32,4 +33,4 @@ npm run typecheck
 
 Extracted from the isolated LeadForge Development Remix source at commit `d84685707d15a5f23321d35bdc3f9ddc7a950386`. The source extraction has been text-audited for customer references and fixture leakage. Typecheck and focused regression tests are not yet verified in this environment.
 
-Persistence, authentication, AI-provider adapters, application seed-state composition, UI, and deployment remain outside this package. The extracted reducer is not yet wired into Development Remix or Production.
+Persistence, authentication, AI-provider adapters, application seed-state composition, UI, and deployment remain outside this package. The extracted reducer and adapter are not wired into Development Remix or Production. The adapter expects application-provided seed catalogues and `seedState()` output; it does not import application fixtures or security/persistence code.
