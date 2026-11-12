@@ -1,19 +1,24 @@
-# Reducer differential parity matrix — pre-extraction gate
+# Reducer parity and controlled extraction record
 
-Pinned source: Development Remix `src/components/outbound-intelligence/state.ts` at
+## Source and implementation
+
+Pinned behavioral source: Development Remix
+`src/components/outbound-intelligence/state.ts` at commit
 `d84685707d15a5f23321d35bdc3f9ddc7a950386`.
 
-The test-only `packages/leadforge-core/src/reference/pinned-reducer.oracle.ts`
-contains the source reducer switch body with documented fixture and deterministic
-metadata injection. It is compared against the fixture-free
-`reducer-harness.ts` using identical synthetic state/action inputs and deep
-state equality. No application fixtures, live contacts, browser, database, or
-external providers are involved.
+The source remains read-only. The repository contains three separate artifacts:
+- `packages/leadforge-core/src/reference/pinned-reducer.oracle.ts`: test-only source-derived oracle with documented fixture and deterministic metadata injection.
+- `packages/leadforge-core/src/reference/reducer-harness.ts`: independent fixture-free behavioral harness retained for reference.
+- `packages/leadforge-core/src/reducer.ts`: standalone extracted core reducer implementation, now publicly exported from the package index.
+
+The differential suite executes the oracle, reference harness, and extracted reducer on identical synthetic states/actions and compares complete resulting states.
+
+## Verified scenarios
 
 | Area | Differential scenario | Status |
 |---|---|---|
 | Reply / intent | High intent, fit/handoff, opt-out and sticky opt-out | PASS |
-| Reply / intent | Reply after identity edit; original + edited DNC fingerprints | PASS — regression added after mismatch |
+| Reply / intent | Edited identity; original + edited DNC fingerprints | PASS |
 | Campaign simulation | All nine script cursor positions and terminal boundary | PASS |
 | Campaign simulation | Connection accepted, positive reply, inbox/notification creation, approval event | PASS |
 | Campaign simulation | Non-running and fully DNC-suppressed audience guards | PASS |
@@ -28,47 +33,35 @@ external providers are involved.
 | Notifications | Queue/history caps and dismissal | PASS |
 | State management | ICP/industry, selection, workflow patch and hydrate replacement | PASS |
 | Invalid/missing records | Missing prospect/action targets preserve no-op behavior | PASS |
-| Deterministic metadata | Identical action metadata produces matching IDs/timestamps in each transition | PASS |
+| Deterministic metadata | Identical action metadata produces matching IDs/timestamps | PASS |
 
-## Mismatch found and fixed
+## Mismatch found and corrected
 
-The first executable comparison found a real `SUBMIT_REPLY` DNC mismatch after a
-prospect identity edit. The harness stored the edited fingerprint only, whereas
-the pinned reducer's `addSuppressions` stores both the original and edited
-identity fingerprints. The harness now uses the same suppression helper and a
-dedicated differential regression test verifies the behavior.
+The initial differential comparison caught a real `SUBMIT_REPLY` DNC mismatch after prospect identity edits. The harness initially stored only the edited fingerprint; the pinned reducer preserves both original and edited fingerprints. The harness was corrected and the regression is retained.
 
-## CI evidence
+## Extraction and CI status
 
-Latest successful run: [43312395639](https://github.com/shahid-ai-automation/leadforge-intelligence/actions/runs/43312395639)
+The reducer has now been extracted into the isolated core package and exported from `src/index.ts`. The differential test suite compares the extracted reducer against the pinned oracle for every covered case.
 
-- Commit: `fe5ad7fc6cccde75e356c2047ade17b78809e2b5`
+Latest verified CI:
+- Run: [43313072939](https://github.com/shahid-ai-automation/leadforge-intelligence/actions/runs/43313072939)
+- Commit: `3776f2e50cf1d2fa91c0a50dc97e2366f7762175`
 - Strict TypeScript check: PASS
 - 4 test files: PASS
 - 93 tests: PASS, including 48 differential cases
+- Extracted reducer compared against oracle: PASS
 
-## Remaining limits before extraction
+A subsequent source-comment-only provenance clarification is committed separately and does not change reducer behavior.
 
-- Oracle adaptations inject synthetic seed prospects/ICPs and a reset baseline;
-  actual `seedState()` composition and app-boundary hydration remain outside
-  this fixture-free test.
-- The oracle and harness intentionally share pure domain helpers (intent,
-  scoring, simulation script, identity hashing, and draft state machine). This
-  differential suite checks reducer transition wiring/state effects, not
-  independent correctness of those shared helper algorithms.
-- Module-global notification ID behavior is normalized through a deterministic
-  per-transition starting counter. Multi-action global counter continuity and
-  the browser/server `applyAction` context wrapper are not independently
-  exercised by this suite.
-- Manual E2E completion remains separate from reducer parity; this audit does
-  not change the previously recorded partial E2E status.
+## Remaining integration boundaries
 
-## Extraction gate and safety boundary
+This is a **core-package extraction only**, not an application integration:
+- The extracted reducer is not wired into Development Remix or Production.
+- Application `seedState()` composition and browser/server `applyAction` wrapper remain outside the package.
+- The oracle and reducer share pure domain helpers (intent, scoring, simulation script, identity hashing, draft state machine); this suite checks reducer transition wiring and resulting state, not independent correctness of those shared helpers.
+- Module-global notification ID continuity across multiple browser actions is normalized to deterministic per-transition metadata in tests.
+- Manual E2E completion remains separate; prior E2E status remains partial.
 
-The reducer has **not** been extracted. Do not extract it based solely on this
-green differential suite; wait for explicit approval and preserve controlled
-module-by-module parity tests during any future extraction.
+## Safety boundary
 
-Pinned `state.ts` remains read-only. Production and Development Remix remain
-untouched. No deployment, UI change, database change, external integration, or
-real outbound send is part of this work.
+Production and Development Remix remain untouched. No deployment, UI change, database change, external integration, real prospect data, or live outbound send is part of this extraction. Do not integrate the new module into either Remix until a separate integration plan and explicit approval.
